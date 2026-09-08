@@ -10,14 +10,17 @@ public class WebClientConfig {
 
 
         @Bean
+        @LoadBalanced
         public WebClient.Builder webClientBuilder() {
+
             return WebClient.builder();
         }
 
 
     @Bean
-    public WebClient GeminiService(WebClient.Builder webClient) {
-        return webClient.build();
+    public WebClient webClient(WebClient.Builder webClient) {
+
+            return webClient.build();
     }
     }
 
