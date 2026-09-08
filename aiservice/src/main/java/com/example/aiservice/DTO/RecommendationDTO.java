@@ -30,7 +30,7 @@ public class RecommendationDTO {
 
     private  List<SuggestionDTO> suggestions;
 
-    private String safety;
+    private List<String> safety;
 
     @JsonIgnore
     private LocalDateTime createdAt;
