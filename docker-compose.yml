@@ -91,6 +91,19 @@ services:
       - userservice
       - activityservice
       - aiservice
+      - mailservice
+
+
+  mailservice:
+    build: ./mailservice
+    container_name: mailservice
+    depends_on:
+      - configserver
+      - eureka
+      - kafka
+    environment:
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
 
   prometheus:
     image: prom/prometheus:latest
@@ -104,6 +117,7 @@ services:
       - activityservice
       - aiservice
       - apigateway
+      - mailservice
 
   grafana:
     image: grafana/grafana:latest
