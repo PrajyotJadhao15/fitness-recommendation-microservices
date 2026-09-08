@@ -2,6 +2,7 @@ package com.gateway.apigateway.Filter;
 
 import com.gateway.apigateway.config.JwtUtility;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -51,8 +52,20 @@ System.out.println("Path: "+path);
             return exchange.getResponse().setComplete();
         }
 
+        String email = jwtUtility.extractEmail(token);
+
+        exchange = exchange.mutate()
+                .request(request -> request.header("X-User-Email", email))
+                .build();
+
+
         return chain.filter(exchange);
+
+
+
     }
+
+
 }
 
 
