@@ -24,15 +24,6 @@ class RecommendationMapperService {
 
 
 
-//         return Recommendation.builder()
-//                  .id(activity.getId())
-//                  .userId(activity.getUserId())
-//                  .analysis(modelMapper.map(DTO.getAnalysis(), Analysis.class))
-//                  .improvements(modelMapper.map(DTO.getImprovements(), Improvements.class))
-//                  .suggestions(modelMapper.map(DTO.getSuggestions(), Suggestion.class))
-//                  .safety(DTO.getSafety())
-//                  .createdAt((LocalDateTime.now()))
-//                  .build();
 
         log.info("Improvements DTO = {}", DTO.getImprovements());
         log.info("Suggestions DTO = {}", DTO.getSuggestions());
@@ -45,18 +36,23 @@ class RecommendationMapperService {
                 .map(dto -> modelMapper.map(dto, Suggestion.class)).toList());
 
 
-        return recommendationRepository.save(Recommendation.builder()
+        return Recommendation.builder()
                  .activityId(activity.getId())
                  .userId(activity.getUserId())
-                 .analysis(modelMapper.map(DTO.getAnalysis(), Analysis.class))
-                 .improvements(DTO.getImprovements().stream()
-                                 .map(dto -> modelMapper.map(dto, Improvements.class))
+                 .analysis(modelMapper.map(
+                         DTO.getAnalysis(), Analysis.class)
+                 )
+                 .improvements(DTO.getImprovements()
+                         .stream()
+                         .map(dto -> modelMapper.map(dto, Improvements.class))
                          .toList())
+
+
                  .suggestions(DTO.getSuggestions().stream()
                          .map(dto -> modelMapper.map(dto, Suggestion.class)).toList())
                  .safety(DTO.getSafety())
                  .createdAt((LocalDateTime.now()))
-                 .build());
+                 .build();
 
     }
 
