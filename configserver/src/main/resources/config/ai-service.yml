@@ -13,10 +13,22 @@ spring:
         spring.json.use.type.headers: false
         spring.json.value.default.type: com.example.aiservice.model.Activity
         spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  ai:
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY}
+        chat:
+          options:
+            model: gemini-3.6-flash
 
 kafka:
   topic:
     name: activity_events
+    recommendation: recommendation.generated
 
 management:
   endpoints:
@@ -44,11 +56,6 @@ eureka:
 
   instance:
     preferIpAddress: true
-
-gemini:
-  api:
-    url: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
-    key: ${GEMINI_API_KEY}
 
 resilience4j:
   circuitbreaker:
