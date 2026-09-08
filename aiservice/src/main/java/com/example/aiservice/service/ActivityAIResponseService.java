@@ -1,12 +1,13 @@
 package com.example.aiservice.service;
 
 import com.example.aiservice.DTO.AIRecommendationResponseDTO;
+import com.example.aiservice.DTO.RecommendationGeneratedEvent;
+import com.example.aiservice.DTO.UserResponseDTO;
 import com.example.aiservice.Exceptions.AiResponseParsingException;
 import com.example.aiservice.Metrics.AiMetrics;
 import com.example.aiservice.Repository.RecommendationRepository;
 import com.example.aiservice.model.Activity;
 import com.example.aiservice.model.Recommendation;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -20,28 +21,31 @@ public class ActivityAIResponseService {
 
     private final GeminiService geminiService;
     private final ObjectMapper objectMapper;
+    private final PromptService promptService;
     private final RecommendationRepository recommendationRepository;
     private final RecommendationMapperService recommendationMapperService;
     private final AiMetrics aiMetrics;
+    private final RecommendationEventProducer recommendationEventProducer;
+    private final UserClientService userClientService;
+    private final RecommendationEventMapper recommendationEventMapper;
 
   //  private static final double COST_PER_TOKEN = 0.000001;
 
 
 
-    public Recommendation generateRecommendation(Activity activity) {
-
-        String prompt = createPromptForAiService(activity);
+    public void generateRecommendation(Activity activity) {
 
 
-      String response=geminiService.getRecommendations(prompt);
+
+          // Structured Prompt Creation.....
+          String prompt = promptService.createPromptForAiService(activity);
+
+          // Calling Gemini Service Which contains llm Call Logic...
+          String response=geminiService.getRecommendations(prompt);
 
       log.info("AI Response: {}", response);
 
-        try {
 
-            JsonNode rootNode = objectMapper.readTree(response);
-
-            JsonNode usageMetadata = rootNode.path("usageMetadata");
 
 //            double totalTokens =
 //                    usageMetadata.path("totalTokenCount").asDouble();
@@ -60,122 +64,114 @@ public class ActivityAIResponseService {
 
          //   log.info("Estimated AI Cost: {}", estimatedCost);
 
-        } catch (Exception e) {
 
-            aiMetrics.getAiFailures().increment();
 
-            log.error("Failed to extract token usage", e);
-        }
-
-       return processAiResponse(activity, response);
+        processAiResponse(activity, response);
 
     }
 
 
-    private Recommendation processAiResponse(Activity activity, String response) {
+    private void processAiResponse(Activity activity, String response) {
 
+        try {
 
-        try{
-           // ObjectMapper objectMapper =new ObjectMapper();
-            JsonNode rootNode =objectMapper.readTree(response);
+            // GeminiService already returns only the generated content
+            if (response == null || response.isBlank()) {
+                throw new IllegalStateException(
+                        "AI service returned an empty response"
+                );
+            }
 
-              JsonNode textNode=rootNode.path("candidates")
-                      .get(0).path("content")
-                      .path("parts")
-                      .get(0)
-                      .path("text");
+            String cleanJson = response
+                    .replace("```json", "")
+                    .replace("```", "")
+                    .trim();
 
-              String cleanJson= textNode.asText()
-                      .replaceAll("(?s)```json\\s*", "")
-                      .replaceAll("```", "")
-                      .trim();
-
-
-
+            // Extract JSON object in case Gemini adds surrounding text
             int start = cleanJson.indexOf("{");
             int end = cleanJson.lastIndexOf("}");
-            String cleanContent= cleanJson.substring(start, end + 1);
 
-            log.info("Response From Clean AI: {}", cleanContent);
+            if (start == -1 || end == -1 || start > end) {
+                throw new IllegalStateException(
+                        "No valid JSON object found in AI response: "
+                                + cleanJson
+                );
+            }
 
-              AIRecommendationResponseDTO AIrecommendationDTO=objectMapper
-                      .readValue(cleanContent, AIRecommendationResponseDTO.class);
+            String cleanContent =
+                    cleanJson.substring(start, end + 1);
 
+            log.info(
+                    "Response From Clean AI: {}",
+                    cleanContent
+            );
 
-           Recommendation recommendation=recommendationMapperService
-                   .recommendationMapping(AIrecommendationDTO, activity);
+            // Convert AI JSON into DTO
+            AIRecommendationResponseDTO aiRecommendationDTO =
+                    objectMapper.readValue(
+                            cleanContent,
+                            AIRecommendationResponseDTO.class
+                    );
 
-           recommendationRepository.save(recommendation);
+            // Map DTO -> Recommendation entity
+            Recommendation recommendation =
+                    recommendationMapperService
+                            .recommendationMapping(
+                                    aiRecommendationDTO,
+                                    activity
+                            );
 
-            aiMetrics.getRecommendationsGenerated().increment();
+            // Save recommendation
+            recommendationRepository.save(recommendation);
 
-           log.info("Recommendation Response Saved: {}", recommendation);
+            // Get user ID
+            Integer userId =
+                    Integer.valueOf(activity.getUserId());
 
-            return recommendation;
+            // Get user details from User Service
+            UserResponseDTO user =
+                    userClientService.getUserById(userId);
 
+            String email = user.getEmail();
 
-        } catch(Exception e){
+            log.info(
+                    "User email retrieved: {}",
+                    email
+            );
 
-            log.error("AI Response not Saved: {}",  response);
+            // Create event
+            RecommendationGeneratedEvent event =
+                    recommendationEventMapper.map(
+                            recommendation,
+                            email
+                    );
+
+            // Publish event
+            recommendationEventProducer.publish(event);
+
+            // Metrics
+            aiMetrics
+                    .getRecommendationsGenerated()
+                    .increment();
+
+            log.info(
+                    "Recommendation Response Saved: {}",
+                    recommendation
+            );
+
+        } catch (Exception e) {
+
+            log.error(
+                    "AI Response not Saved: {}",
+                    response,
+                    e
+            );
 
             throw new AiResponseParsingException(
                     "Failed to parse AI response",
                     e
             );
-
-
         }
-
-
-
-
-
-    }
-
-    public String createPromptForAiService(Activity activity){
-
-        return String.format("""
-        Analyze this fitness activity and provide detailed recommendations in the following EXACT JSON format:
-        {
-          "analysis": {
-            "overall": "Overall analysis here",
-            "pace": "Pace analysis here",
-            "heartRate": "Heart rate analysis here",
-            "caloriesBurned": "Calories analysis here"
-          },
-          "improvements": [
-            {
-              "area": "Area name",
-              "recommendation": "Detailed recommendation"
-            }
-          ],
-          "suggestions": [
-            {
-              "workout": "Workout name",
-              "description": "Detailed workout description"
-            }
-          ],
-          "safety": [
-            "Safety point 1",
-            "Safety point 2"
-          ]
-        }
-
-        Analyze this activity:
-        Activity Type: %s
-        Duration: %d minutes
-        Calories Burned: %d
-        Additional Metrics: %s
-        
-        Provide detailed analysis focusing on performance, improvements, next workout suggestions, and safety guidelines.
-        Ensure the response follows the EXACT JSON format shown above.
-        """,
-
-                activity.getType(),
-                activity.getDuration(),
-                activity.getCalorieBurned(),
-                activity.getMetrics()
-        );
     }
 
 }
