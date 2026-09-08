@@ -1,0 +1,54 @@
+name: Fitness Microservices CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build and test User Service
+        working-directory: userservice
+        run: mvn clean test
+
+      - name: Build and test Activity Service
+        working-directory: activityservice
+        run: mvn clean test
+
+      - name: Build and test AI Service
+        working-directory: aiservice
+        run: mvn clean test
+
+      - name: Build and test Mail Service
+        working-directory: mailservice
+        run: mvn clean test
+
+      - name: Build API Gateway
+        working-directory: apigateway
+        run: mvn clean package -DskipTests
+
+      - name: Build Config Server
+        working-directory: configserver
+        run: mvn clean package -DskipTests
+
+      - name: Build Eureka Server
+        working-directory: eureka
+        run: mvn clean package -DskipTests
