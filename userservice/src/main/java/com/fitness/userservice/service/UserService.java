@@ -4,6 +4,7 @@ import com.fitness.userservice.DTO.AuthResponse;
 import com.fitness.userservice.DTO.LoginRequest;
 import com.fitness.userservice.DTO.UserDTO;
 import com.fitness.userservice.DTO.UserRequest;
+import com.fitness.userservice.exceptipns.BadCredentialsException;
 import com.fitness.userservice.exceptipns.EmailAlreadyExistsException;
 import com.fitness.userservice.model.User;
 import com.fitness.userservice.repository.UserRepository;
@@ -76,7 +77,7 @@ public class UserService {
    }
 
 
-    public AuthResponse login(LoginRequest request) throws InvalidCredentialsException {
+    public AuthResponse login(LoginRequest request) {
 
 
         User user = userRepository.findByEmail(request.getEmail())
@@ -84,7 +85,7 @@ public class UserService {
 
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new InvalidCredentialsException("Invalid credentials");
+            throw new BadCredentialsException("Invalid credentials");
         }
 
         String token = jwtService.generateToken(user.getEmail());
